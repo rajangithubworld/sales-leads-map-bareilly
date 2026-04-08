@@ -209,15 +209,16 @@ def geocode_address(address: str, cache: dict) -> tuple[float | None, float | No
     Uses a multi-strategy approach for best results:
       1. Try full address + "Bareilly, Uttar Pradesh, India"
       2. Try simplified address + "Bareilly"
-      3. Fallback to just "Bareilly, Uttar Pradesh" (city center)
+      3. Fallback to Bareilly city center with jitter
+    Catches ALL exceptions to never crash on cloud environments.
     """
+    import random
+
     cache_key = address.strip().lower()
     if cache_key in cache:
         return cache[cache_key]["lat"], cache[cache_key]["lon"]
 
-    geolocator = Nominatim(user_agent="bareilly_sales_map_v1", timeout=10)
-
-    # Strategy 1: Full address with Bareilly context
+    # Strategy 1: Try geocoding with Nominatim
     queries = [
         f"{address}, Bareilly, Uttar Pradesh, India",
         f"{address}, Bareilly, India",
@@ -226,6 +227,10 @@ def geocode_address(address: str, cache: dict) -> tuple[float | None, float | No
 
     for query in queries:
         try:
+            geolocator = Nominatim(
+                user_agent=f"bareilly_sales_map_{random.randint(1000,9999)}",
+                timeout=10,
+            )
             location = geolocator.geocode(query, exactly_one=True)
             if location:
                 lat, lon = location.latitude, location.longitude
@@ -234,18 +239,20 @@ def geocode_address(address: str, cache: dict) -> tuple[float | None, float | No
                     cache[cache_key] = {"lat": lat, "lon": lon, "query": query}
                     save_geocode_cache(cache)
                     return lat, lon
-            time.sleep(1.1)  # Respect Nominatim rate limit
-        except (GeocoderTimedOut, GeocoderUnavailable):
+            time.sleep(1.5)  # Respect Nominatim rate limit
+        except Exception:
+            # Catch ALL errors (GeocoderServiceError, SSL, 403, connection, etc.)
             time.sleep(2)
             continue
 
-    # Fallback: Bareilly city center with small random offset to avoid overlap
-    import random
-
-    lat = BAREILLY_CENTER[0] + random.uniform(-0.008, 0.008)
-    lon = BAREILLY_CENTER[1] + random.uniform(-0.008, 0.008)
+    # Fallback: Bareilly city center with random offset to avoid stacking markers
+    lat = BAREILLY_CENTER[0] + random.uniform(-0.012, 0.012)
+    lon = BAREILLY_CENTER[1] + random.uniform(-0.012, 0.012)
     cache[cache_key] = {"lat": lat, "lon": lon, "query": "fallback_city_center"}
-    save_geocode_cache(cache)
+    try:
+        save_geocode_cache(cache)
+    except Exception:
+        pass  # Cache save may fail on read-only cloud filesystems
     return lat, lon
 
 
