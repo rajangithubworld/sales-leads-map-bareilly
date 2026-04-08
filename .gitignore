@@ -1,0 +1,22 @@
+# Cache files
+geocode_cache.json
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Data files (user uploads - don't commit real data)
+*.xlsx
+*.xls
+*.csv
+!sample_companies.xlsx
+
+# Batch scripts (Windows only, not needed for cloud)
+*.bat
